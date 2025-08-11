@@ -14,6 +14,12 @@ import argparse
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Set matplotlib backend for thread safety (must be done before importing matplotlib)
+import matplotlib
+matplotlib.use('Agg')
 
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent / 'src'))
@@ -21,6 +27,10 @@ sys.path.append(str(Path(__file__).parent / 'src'))
 from src.data.gpx_parser import GPXParser
 from src.data.feature_engineering import FeatureEngineer
 from src.models.ols_model import OLSModel
+from src.models.ridge_model import RidgeModel
+from src.models.elastic_net_model import ElasticNetModel
+from src.models.random_forest_model import RandomForestModel
+from src.models.xgboost_model import XGBoostModel
 from src.utils.metrics import MetricsCalculator
 from src.utils.visualization import Visualizer
 
@@ -151,15 +161,23 @@ class HRModelPipeline:
         # Base features
         feature_cols.extend(self.config['features']['base_features'])
         
-        # Moving average features
-        for base_feature in ['cad', 'power', 'hr']:  # Note: hr moving averages might be used as features
-            if base_feature == self.config['features']['target']:
-                continue  # Skip target variable moving averages
+        # Moving average features (exclude HR to prevent data leakage)
+        for base_feature in ['cad', 'power']:  # Removed 'hr' - we can't use HR to predict HR
             for window in self.config['features']['moving_averages']:
                 feature_cols.append(f"{base_feature}{window}")
         
-        # Filter to available features
+        # Add power/cadence lag features (effort history)
+        for base_feature in ['power', 'cad']:
+            for lag in [1, 5, 10, 15, 30]:
+                feature_cols.append(f"{base_feature}_lag_{lag}")
+        
+        # Filter to available features and exclude any HR-related features
         available_features = [col for col in feature_cols if col in combined_df.columns]
+        
+        # CRITICAL: Remove any HR-related features to prevent data leakage
+        available_features = [col for col in available_features if not col.startswith('hr')]
+        
+        self.logger.info(f"Features selected (no HR leakage): {available_features}")
         
         # Prepare X and y
         X = combined_df[available_features].fillna(0)
@@ -177,7 +195,7 @@ class HRModelPipeline:
         """Train all configured models."""
         self.logger.info("Training models...")
         
-        # For now, start with OLS
+        # Train OLS model
         if 'ols' in self.config['training']['models']:
             model_name = 'ols'
             self.logger.info(f"Training {model_name.upper()} model...")
@@ -196,6 +214,128 @@ class HRModelPipeline:
             
             # Save model
             ols_model.save(model_dirs['model_file'])
+        
+        # Train Ridge model
+        if 'ridge' in self.config['training']['models']:
+            model_name = 'ridge'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get Ridge configuration
+            ridge_config = self.config['models']['ridge']
+            alpha = ridge_config.get('alpha', 1.0)
+            
+            # If alpha_range is specified, use the middle value for now
+            # (Later this could be enhanced with hyperparameter tuning)
+            if 'alpha_range' in ridge_config:
+                alpha_range = ridge_config['alpha_range']
+                alpha = np.sqrt(alpha_range[0] * alpha_range[1])  # Geometric mean
+            
+            # Create and train model
+            ridge_model = RidgeModel(
+                feature_columns=feature_cols,
+                alpha=alpha,
+                normalize=ridge_config.get('normalize', True)
+            )
+            ridge_model.train(X, y)
+            self.models[model_name] = ridge_model
+            
+            # Save model
+            ridge_model.save(model_dirs['model_file'])
+        
+        # Train Elastic Net model
+        if 'elastic_net' in self.config['training']['models']:
+            model_name = 'elastic_net'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get Elastic Net configuration
+            elastic_net_config = self.config['models']['elastic_net']
+            alpha = elastic_net_config.get('alpha', 1.0)
+            l1_ratio = elastic_net_config.get('l1_ratio', 0.5)
+            
+            # Create and train model
+            elastic_net_model = ElasticNetModel(
+                feature_columns=feature_cols,
+                alpha=alpha,
+                l1_ratio=l1_ratio,
+                normalize=elastic_net_config.get('normalize', True)
+            )
+            elastic_net_model.train(X, y)
+            self.models[model_name] = elastic_net_model
+            
+            # Save model
+            elastic_net_model.save(model_dirs['model_file'])
+        
+        # Train Random Forest model
+        if 'random_forest' in self.config['training']['models']:
+            model_name = 'random_forest'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get Random Forest configuration
+            rf_config = self.config['models']['random_forest']
+            n_estimators = rf_config.get('n_estimators', 100)
+            max_depth = rf_config.get('max_depth', None)
+            min_samples_split = rf_config.get('min_samples_split', 5)
+            min_samples_leaf = rf_config.get('min_samples_leaf', 2)
+            
+            # Create and train model
+            rf_model = RandomForestModel(
+                feature_columns=feature_cols,
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                min_samples_split=min_samples_split,
+                min_samples_leaf=min_samples_leaf,
+                normalize=rf_config.get('normalize', False)
+            )
+            rf_model.train(X, y)
+            self.models[model_name] = rf_model
+            
+            # Save model
+            rf_model.save(model_dirs['model_file'])
+        
+        # Train XGBoost model
+        if 'xgboost' in self.config['training']['models']:
+            model_name = 'xgboost'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get XGBoost configuration
+            xgb_config = self.config['models']['xgboost']
+            n_estimators = xgb_config.get('n_estimators', 200)
+            max_depth = xgb_config.get('max_depth', 6)
+            learning_rate = xgb_config.get('learning_rate', 0.1)
+            subsample = xgb_config.get('subsample', 0.8)
+            colsample_bytree = xgb_config.get('colsample_bytree', 0.8)
+            
+            # Create and train model
+            xgb_model = XGBoostModel(
+                feature_columns=feature_cols,
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                learning_rate=learning_rate,
+                subsample=subsample,
+                colsample_bytree=colsample_bytree,
+                normalize=xgb_config.get('normalize', False)
+            )
+            xgb_model.train(X, y)
+            self.models[model_name] = xgb_model
+            
+            # Save model
+            xgb_model.save(model_dirs['model_file'])
     
     def evaluate_models(self, X: pd.DataFrame, y: pd.Series) -> None:
         """Evaluate all trained models."""
@@ -259,38 +399,91 @@ class HRModelPipeline:
                                    f"RMSE: {file_metrics['rmse']:.2f}")
     
     def create_visualizations(self) -> None:
-        """Create visualization plots."""
+        """Create visualization plots using parallel processing."""
         if not self.config['evaluation']['create_plots']:
             return
         
-        self.logger.info("Creating visualizations...")
+        self.logger.info("Creating visualizations in parallel...")
         
-        for model_name, results in self.results.items():
-            # Get model directories
-            model_dirs = self.get_model_directories(model_name)
-            model_plots_dir = model_dirs['plots']
-            model_plots_dir.mkdir(parents=True, exist_ok=True)
+        # Use ThreadPoolExecutor for parallel visualization generation
+        max_workers = min(len(self.results), 8)  # Limit to 4 threads to avoid overwhelming the system
+        
+        def create_model_visualizations(model_item):
+            """Create visualizations for a single model."""
+            import matplotlib
+            import matplotlib.pyplot as plt
             
-            # Global predictions plot
-            self.visualizer.plot_predictions(
-                results['predictions']['y_true'],
-                results['predictions']['y_pred'],
-                title=f"{model_name.upper()} Model - Overall Performance",
-                save_path=model_plots_dir / 'predictions.png'
-            )
+            # Force matplotlib to use non-interactive Agg backend for thread safety
+            matplotlib.use('Agg')
             
-            # Feature importance (if available)
-            if hasattr(results['model'], 'get_feature_importance'):
-                importance_df = results['model'].get_feature_importance()
-                if importance_df is not None:
-                    self.visualizer.plot_feature_importance(
-                        importance_df,
-                        title=f"{model_name.upper()} Feature Importance",
-                        save_path=model_plots_dir / 'feature_importance.png'
-                    )
+            model_name, results = model_item
+            thread_id = threading.current_thread().ident
+            self.logger.info(f"Thread {thread_id}: Creating visualizations for {model_name}")
             
-            # Create time-series plots for each input file
-            self.create_file_time_series_plots(model_name, model_plots_dir)
+            try:
+                # Get model directories
+                model_dirs = self.get_model_directories(model_name)
+                model_plots_dir = model_dirs['plots']
+                model_plots_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Global predictions plot
+                self.visualizer.plot_predictions(
+                    results['predictions']['y_true'],
+                    results['predictions']['y_pred'],
+                    title=f"{model_name.upper()} Model - Overall Performance",
+                    save_path=model_plots_dir / 'predictions.png'
+                )
+                
+                # Feature importance (if available)
+                if hasattr(results['model'], 'get_feature_importance'):
+                    importance_df = results['model'].get_feature_importance()
+                    if importance_df is not None:
+                        self.visualizer.plot_feature_importance(
+                            importance_df,
+                            title=f"{model_name.upper()} Feature Importance",
+                            save_path=model_plots_dir / 'feature_importance.png'
+                        )
+                
+                # Create time-series plots for each input file
+                self.create_file_time_series_plots(model_name, model_plots_dir)
+                
+                # Close all matplotlib figures to prevent memory leaks
+                plt.close('all')
+                
+                self.logger.info(f"Thread {thread_id}: Completed visualizations for {model_name}")
+                return f"✅ {model_name}"
+                
+            except Exception as e:
+                error_msg = f"❌ {model_name}: {str(e)}"
+                self.logger.error(f"Thread {thread_id}: Error creating visualizations for {model_name}: {e}", exc_info=True)
+                return error_msg
+        
+        # Execute visualization creation in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_model = {
+                executor.submit(create_model_visualizations, item): item[0] 
+                for item in self.results.items()
+            }
+            
+            # Collect results as they complete
+            completed_models = []
+            for future in as_completed(future_to_model):
+                model_name = future_to_model[future]
+                try:
+                    result = future.result()
+                    completed_models.append(result)
+                except Exception as e:
+                    error_msg = f"❌ {model_name}: {str(e)}"
+                    completed_models.append(error_msg)
+                    self.logger.error(f"Failed to create visualizations for {model_name}: {e}")
+        
+        # Log completion summary
+        success_count = sum(1 for result in completed_models if result.startswith('✅'))
+        self.logger.info(f"Visualization creation completed: {success_count}/{len(self.results)} models successful")
+        
+        for result in completed_models:
+            self.logger.info(f"  {result}")
     
     def create_file_time_series_plots(self, model_name: str, plots_dir: Path) -> None:
         """Create time-series plots for each input file."""

@@ -185,8 +185,12 @@ class Visualizer:
         # Select top N features
         plot_df = importance_df.head(top_n)
         
-        ax.barh(plot_df['feature'], plot_df['abs_coefficient'])
-        ax.set_xlabel('Importance (Absolute Coefficient)')
+        # Handle different column names for different model types
+        importance_col = 'abs_coefficient' if 'abs_coefficient' in plot_df.columns else 'importance'
+        xlabel = 'Importance (Absolute Coefficient)' if 'abs_coefficient' in plot_df.columns else 'Feature Importance'
+        
+        ax.barh(plot_df['feature'], plot_df[importance_col])
+        ax.set_xlabel(xlabel)
         ax.set_ylabel('Feature')
         ax.set_title(title)
         ax.grid(True, alpha=0.3, axis='x')

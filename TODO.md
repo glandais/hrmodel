@@ -1,0 +1,2 @@
+ - [ ] Test polynomial features for non-linear relationships
+ - [ ] Create LSTM model for temporal patterns
