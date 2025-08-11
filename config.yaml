@@ -149,6 +149,54 @@ models:
     n_estimators: 200          # Number of boosting rounds
     normalize: false           # Not needed for tree-based models
     subsample: 0.8             # Row sampling ratio
+  
+  # LightGBM: Fast gradient boosting (Microsoft's high-performance implementation)
+  lightgbm:
+    n_estimators: 200          # Number of boosting iterations
+    max_depth: -1              # Maximum tree depth (-1 = no limit, controlled by num_leaves)
+    num_leaves: 31             # Maximum leaves per tree (default 31, should be <= 2^max_depth)
+    learning_rate: 0.1         # Boosting learning rate
+    subsample: 0.8             # Row sampling ratio for bagging
+    colsample_bytree: 0.8      # Feature sampling ratio per tree
+    min_child_samples: 20      # Minimum data in leaf (regularization)
+    reg_alpha: 0.0             # L1 regularization on leaf weights
+    reg_lambda: 0.0            # L2 regularization on leaf weights
+    normalize: false           # Not needed for tree-based models
+  
+  # ARIMA: Time-series model with exogenous variables
+  arima:
+    order: [1, 0, 1]           # (p, d, q): AR order, differencing, MA order (simplified)
+    seasonal_order: [0, 0, 0, 0]  # (P, D, Q, s): seasonal components
+    use_exog: true             # Use power/cadence as external regressors
+    normalize: false           # Feature scaling
+  
+  # Prophet: Facebook's time-series forecasting model
+  prophet:
+    yearly_seasonality: false   # Annual patterns (not relevant for single rides)
+    weekly_seasonality: false   # Weekly patterns (not relevant for single rides) 
+    daily_seasonality: true     # Within-day patterns (relevant for HR)
+    changepoint_prior_scale: 0.05  # Trend flexibility (lower = less flexible)
+    seasonality_prior_scale: 10.0  # Seasonal flexibility (higher = more flexible)
+    normalize: false           # Feature scaling
+  
+  # State Space Model: Kalman filter-based time-series model
+  state_space:
+    level: true                # Include level component (local level)
+    trend: true                # Include trend component (local linear trend)
+    seasonal: null             # Seasonal period (null = no seasonality)
+    use_exog: true             # Use external regressors (power/cadence)
+    normalize: false           # Feature scaling
+  
+  # DeepAR: Amazon's neural network for probabilistic forecasting
+  deepar:
+    hidden_size: 64            # Number of LSTM hidden units
+    num_layers: 2              # Number of LSTM layers
+    dropout: 0.1               # Dropout rate for regularization
+    learning_rate: 0.001       # Learning rate for Adam optimizer
+    n_epochs: 30               # Training epochs (reduced for faster training)
+    batch_size: 32             # Batch size for training
+    sequence_length: 30        # Length of input sequences (30 seconds)
+    normalize: true            # Feature scaling (recommended for neural nets)
 
 # Output Configuration
 # -------------------
@@ -206,6 +254,8 @@ training:
   - elastic_net   # L1+L2 regularized
   - random_forest # Best performer (1.17 bpm MAE)
   - xgboost       # Gradient boosting (3.12 bpm MAE)
+  - lightgbm      # Fast gradient boosting (testing)
+#  - prophet       # Facebook's time-series forecasting
   - ensemble      # Weighted RF+XGB (2.36 bpm MAE)
   
   # Whether to perform hyperparameter tuning
@@ -222,6 +272,16 @@ training:
 # Random Forest  | 1.17      | 1.68 | 0.9837 | 🏆 CHAMPION
 # Ensemble       | 2.36      | 3.18 | 0.9417 | 🥈 2nd place
 # XGBoost        | 3.12      | 4.10 | 0.9032 | 3rd place
+# LightGBM       | 3.31      | 4.31 | 0.8929 | 4th place
 # OLS/Ridge      | 4.95      | 6.64 | 0.7456 | Baseline
 # Elastic Net    | 5.73      | 7.41 | 0.6834 | Feature selection
+# Prophet        | 76.09     | 82.56| -38.28 | ❌ Failed (time-series mismatch)
+# ARIMA          | 32M+      | 175M+| -175T+ | ❌ Failed (severe prediction errors)
+# ============================================================
+# 
+# TIME-SERIES MODEL ISSUES:
+# - ARIMA/Prophet designed for sequential forecasting, not cross-sectional prediction
+# - Our task: predict HR from current conditions (power/cadence/elevation)  
+# - Time-series models expect temporal dependencies that don't exist in cycling data
+# - Result: Severe overfitting and prediction failures
 # ============================================================

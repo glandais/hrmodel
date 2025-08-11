@@ -27,7 +27,12 @@ from src.models.ridge_model import RidgeModel
 from src.models.elastic_net_model import ElasticNetModel
 from src.models.random_forest_model import RandomForestModel
 from src.models.xgboost_model import XGBoostModel
+from src.models.lightgbm_model import LightGBMModel
 from src.models.ensemble_model import EnsembleModel
+from src.models.arima_model import ARIMAModel
+from src.models.prophet_model import ProphetModel
+from src.models.state_space_model import StateSpaceModel
+from src.models.deepar_model import DeepARModel
 from src.utils.metrics import MetricsCalculator
 from src.utils.visualization import Visualizer
 
@@ -332,6 +337,177 @@ class HRModelPipeline:
             
             # Save model
             xgb_model.save(model_dirs['model_file'])
+        
+        # Train LightGBM model
+        if 'lightgbm' in self.config['training']['models']:
+            model_name = 'lightgbm'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get LightGBM configuration
+            lgb_config = self.config['models'].get('lightgbm', {})
+            n_estimators = lgb_config.get('n_estimators', 200)
+            max_depth = lgb_config.get('max_depth', -1)
+            num_leaves = lgb_config.get('num_leaves', 31)
+            learning_rate = lgb_config.get('learning_rate', 0.1)
+            subsample = lgb_config.get('subsample', 0.8)
+            colsample_bytree = lgb_config.get('colsample_bytree', 0.8)
+            min_child_samples = lgb_config.get('min_child_samples', 20)
+            reg_alpha = lgb_config.get('reg_alpha', 0.0)
+            reg_lambda = lgb_config.get('reg_lambda', 0.0)
+            
+            # Create and train model
+            lgb_model = LightGBMModel(
+                feature_columns=feature_cols,
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                num_leaves=num_leaves,
+                learning_rate=learning_rate,
+                subsample=subsample,
+                colsample_bytree=colsample_bytree,
+                min_child_samples=min_child_samples,
+                reg_alpha=reg_alpha,
+                reg_lambda=reg_lambda,
+                normalize=lgb_config.get('normalize', False)
+            )
+            lgb_model.train(X, y)
+            self.models[model_name] = lgb_model
+            
+            # Save model
+            lgb_model.save(model_dirs['model_file'])
+        
+        # Train ARIMA model
+        if 'arima' in self.config['training']['models']:
+            model_name = 'arima'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get ARIMA configuration
+            arima_config = self.config['models'].get('arima', {})
+            order = tuple(arima_config.get('order', [2, 1, 2]))
+            seasonal_order = tuple(arima_config.get('seasonal_order', [0, 0, 0, 0]))
+            use_exog = arima_config.get('use_exog', True)
+            
+            # Create and train model
+            arima_model = ARIMAModel(
+                feature_columns=feature_cols,
+                order=order,
+                seasonal_order=seasonal_order,
+                use_exog=use_exog,
+                normalize=arima_config.get('normalize', False)
+            )
+            arima_model.train(X, y)
+            self.models[model_name] = arima_model
+            
+            # Save model
+            arima_model.save(model_dirs['model_file'])
+        
+        # Train Prophet model
+        if 'prophet' in self.config['training']['models']:
+            model_name = 'prophet'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get Prophet configuration
+            prophet_config = self.config['models'].get('prophet', {})
+            yearly_seasonality = prophet_config.get('yearly_seasonality', False)
+            weekly_seasonality = prophet_config.get('weekly_seasonality', False)
+            daily_seasonality = prophet_config.get('daily_seasonality', True)
+            changepoint_prior_scale = prophet_config.get('changepoint_prior_scale', 0.05)
+            seasonality_prior_scale = prophet_config.get('seasonality_prior_scale', 10.0)
+            
+            # Create and train model
+            prophet_model = ProphetModel(
+                feature_columns=feature_cols,
+                yearly_seasonality=yearly_seasonality,
+                weekly_seasonality=weekly_seasonality,
+                daily_seasonality=daily_seasonality,
+                changepoint_prior_scale=changepoint_prior_scale,
+                seasonality_prior_scale=seasonality_prior_scale,
+                normalize=prophet_config.get('normalize', False)
+            )
+            prophet_model.train(X, y)
+            self.models[model_name] = prophet_model
+            
+            # Save model
+            prophet_model.save(model_dirs['model_file'])
+        
+        # Train State Space model
+        if 'state_space' in self.config['training']['models']:
+            model_name = 'state_space'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get State Space configuration
+            ss_config = self.config['models'].get('state_space', {})
+            level = ss_config.get('level', True)
+            trend = ss_config.get('trend', True)
+            seasonal = ss_config.get('seasonal', None)
+            use_exog = ss_config.get('use_exog', True)
+            
+            # Create and train model
+            ss_model = StateSpaceModel(
+                feature_columns=feature_cols,
+                level=level,
+                trend=trend,
+                seasonal=seasonal,
+                use_exog=use_exog,
+                normalize=ss_config.get('normalize', False)
+            )
+            ss_model.train(X, y)
+            self.models[model_name] = ss_model
+            
+            # Save model
+            ss_model.save(model_dirs['model_file'])
+        
+        # Train DeepAR model
+        if 'deepar' in self.config['training']['models']:
+            model_name = 'deepar'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get DeepAR configuration
+            deepar_config = self.config['models'].get('deepar', {})
+            hidden_size = deepar_config.get('hidden_size', 64)
+            num_layers = deepar_config.get('num_layers', 2)
+            dropout = deepar_config.get('dropout', 0.1)
+            learning_rate = deepar_config.get('learning_rate', 0.001)
+            n_epochs = deepar_config.get('n_epochs', 50)
+            batch_size = deepar_config.get('batch_size', 32)
+            sequence_length = deepar_config.get('sequence_length', 30)
+            
+            # Create and train model
+            deepar_model = DeepARModel(
+                feature_columns=feature_cols,
+                hidden_size=hidden_size,
+                num_layers=num_layers,
+                dropout=dropout,
+                learning_rate=learning_rate,
+                n_epochs=n_epochs,
+                batch_size=batch_size,
+                sequence_length=sequence_length,
+                normalize=deepar_config.get('normalize', True)
+            )
+            deepar_model.train(X, y)
+            self.models[model_name] = deepar_model
+            
+            # Save model
+            deepar_model.save(model_dirs['model_file'])
         
         # Train Ensemble model
         if 'ensemble' in self.config['training']['models']:

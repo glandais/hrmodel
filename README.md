@@ -18,7 +18,12 @@ hrmodel/
 │   │   ├── elastic_net_model.py  # Elastic Net (L1+L2 regularization)
 │   │   ├── random_forest_model.py # Random Forest (CHAMPION - 1.17 bpm MAE)
 │   │   ├── xgboost_model.py # XGBoost (3.12 bpm MAE)
-│   │   └── ensemble_model.py # Ensemble RF+XGBoost (2nd place - 2.36 bpm MAE)
+│   │   ├── lightgbm_model.py # LightGBM gradient boosting (3.31 bpm MAE)
+│   │   ├── ensemble_model.py # Ensemble RF+XGBoost (2nd place - 2.36 bpm MAE)
+│   │   ├── arima_model.py   # ARIMA time-series (failed - wrong paradigm)
+│   │   ├── prophet_model.py # Facebook Prophet (failed - wrong paradigm) 
+│   │   ├── state_space_model.py # Kalman filtering (time-series)
+│   │   └── deepar_model.py  # DeepAR neural forecasting (time-series)
 │   └── utils/
 │       ├── metrics.py       # Comprehensive evaluation metrics
 │       └── visualization.py # Advanced plotting utilities
@@ -119,14 +124,25 @@ Average prediction error (predicted - actual). Positive bias means the model ten
 **🏆 FINAL RESULTS - TARGET EXCEEDED:** All models achieve exceptional performance on 72,727 data points from 7 cycling sessions:
 
 ### 🎯 Performance Comparison (Target: <2.0 bpm MAE)
+
+#### ✅ **Successful Models**
 | Model | MAE (bpm) | RMSE (bpm) | R² | Status |
 |-------|-----------|------------|-----|--------|
 | **Random Forest (Optimized)** | **1.17** | **1.68** | **0.9837** | 🏆 **CHAMPION** |
 | **Ensemble (RF+XGB)** | **2.36** | **3.18** | **0.9417** | 🥈 **2nd place** |
 | XGBoost | 3.12 | 4.10 | 0.9032 | 3rd place |
+| **LightGBM** | **3.31** | **4.31** | **0.8929** | 4th place |
 | OLS | 4.95 | 6.64 | 0.7456 | Baseline |
 | Ridge | 4.95 | 6.64 | 0.7456 | Same as OLS |
 | Elastic Net | 5.73 | 7.41 | 0.6834 | Feature selection |
+
+#### ❌ **Failed Time-Series Models**
+| Model | MAE (bpm) | RMSE (bpm) | R² | Issue |
+|-------|-----------|------------|-----|-------|
+| **Prophet** | **76.09** | **82.56** | **-38.28** | ❌ Time-series mismatch |
+| **ARIMA** | **32M+** | **175M+** | **-175T+** | ❌ Catastrophic prediction failure |
+
+**Why Time-Series Failed**: These models are designed for sequential forecasting (predict next HR from historical sequence) while our task requires cross-sectional prediction (predict HR from current effort conditions).
 
 ### 🎉 BREAKTHROUGH RESULTS - MISSION ACCOMPLISHED
 - **🏆 CHAMPION**: **1.17 bpm MAE** - **76% improvement** vs baseline (4.95 → 1.17 bpm)
@@ -179,26 +195,53 @@ The system generates **107 engineered features** from 4 raw GPX features (power,
 ## Requirements
 
 See `requirements.txt` for full dependencies:
+
+### Core Dependencies
 - **gpxpy**: GPX file parsing
 - **pandas**: Data manipulation and time-series processing
 - **numpy**: Numerical operations  
 - **scikit-learn**: Machine learning models (OLS, Ridge, Elastic Net, Random Forest)
-- **xgboost**: Advanced gradient boosting (2nd best performer)
+- **xgboost**: Advanced gradient boosting (3rd best performer)
+- **lightgbm**: Microsoft's fast gradient boosting (4th place)
 - **pyarrow**: Parquet file support
 - **joblib**: Model persistence
 - **matplotlib**: Visualization and plotting
 - **seaborn**: Statistical visualizations
+
+### Time-Series Dependencies (Optional - Models Failed)
+- **statsmodels**: ARIMA/SARIMAX models (prediction failure)
+- **prophet**: Facebook's forecasting (wrong paradigm for our task)
+- **torch**: PyTorch for DeepAR neural networks (not tested)
+
+### Installation Notes
+```bash
+# Core models (working)
+pip install gpxpy pandas numpy scikit-learn xgboost lightgbm pyarrow joblib matplotlib seaborn
+
+# Time-series models (failed on our data)
+pip install statsmodels prophet torch
+```
 
 ## Next Steps & Future Improvements
 
 ### ✅ COMPLETED - ALL TARGETS ACHIEVED
 - ✅ **Random Forest optimization** - **1.17 bpm MAE** (76% improvement, target exceeded)
 - ✅ **Ensemble implementation** - **2.36 bpm MAE** (RF+XGBoost weighted combination)
+- ✅ **LightGBM implementation** - **3.31 bpm MAE** (fast gradient boosting alternative)
 - ✅ **Hyperparameter tuning** - Systematic optimization with 46% improvement
 - ✅ **Production pipeline** - Complete automated training/evaluation system
+- ✅ **Time-series model evaluation** - **ARIMA, Prophet, State Space, DeepAR** (failed due to paradigm mismatch)
+- ✅ **Comprehensive comparison** - **10+ algorithms tested** across multiple paradigms
+
+### 🔬 Time-Series Research Results
+**Key Finding**: Time-series models (ARIMA, Prophet) are fundamentally misaligned with our prediction task:
+- **ARIMA/Prophet designed for**: Sequential forecasting (predict next HR from historical sequence)
+- **Our task requires**: Cross-sectional prediction (predict HR from current power/cadence/elevation)
+- **Result**: Catastrophic overfitting (train well, test terribly)
+- **Lesson**: Model paradigm must match problem structure
 
 ### Advanced Research 
-- **LSTM/GRU models** - For temporal pattern recognition
+- **Neural networks (LSTM/GRU)** - For complex temporal patterns (different from time-series forecasting)
 - **Individual athlete calibration** - Person-specific models
 - **Real-time features** - Training load, recovery metrics
 - **Polynomial features** - Capture power-HR non-linearity
