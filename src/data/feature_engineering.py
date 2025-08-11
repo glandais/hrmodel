@@ -156,40 +156,146 @@ class FeatureEngineer:
         # NOTE: HR lag features removed to prevent data leakage
         # In real prediction, we don't have current/future HR values
         
+        # Advanced physiological features (NO HR USED)
+        if 'power' in df.columns:
+            power_series = df['power'].fillna(0)
+            
+            # Physiological response modeling - effort patterns that predict HR response
+            # Weighted effort history (mimics HR physiological delay response)
+            result_df['effort_response_15s'] = (0.6 * power_series.shift(15) + 
+                                              0.3 * power_series.shift(30) + 
+                                              0.1 * power_series.shift(45)).fillna(0)
+            
+            # Effort ramp rate (sudden changes in power demand)
+            power_diff = power_series.diff().fillna(0)
+            result_df['effort_ramp_rate_30s'] = power_diff.rolling(30, min_periods=1).mean()
+            result_df['effort_ramp_rate_60s'] = power_diff.rolling(60, min_periods=1).mean()
+            
+            # Power variability (neuromuscular fatigue indicators)
+            for window in [30, 60, 120]:
+                power_window = power_series.rolling(window, min_periods=1)
+                result_df[f'power_variability_{window}s'] = power_window.std().fillna(0)
+                result_df[f'power_cv_{window}s'] = (power_window.std() / (power_window.mean() + 1e-6)).fillna(0)
+            
+            # Critical Power estimates (3min, 5min, 20min efforts)
+            for window_min, window_samples in [(3, 180), (5, 300), (20, 1200)]:
+                cp_window = power_series.rolling(window_samples, min_periods=30)
+                result_df[f'critical_power_{window_min}min'] = cp_window.mean().fillna(0)
+            
+            # Functional Threshold Power proxy (estimated from data)
+            ftp_proxy = power_series.quantile(0.85)  # Rough FTP estimate from current ride
+            result_df['ftp_proxy'] = ftp_proxy
+            
+            # Power zones based on FTP proxy (NO HR zones used)
+            result_df['power_zone_1'] = (power_series <= 0.55 * ftp_proxy).astype(int)  # Recovery
+            result_df['power_zone_2'] = ((power_series > 0.55 * ftp_proxy) & (power_series <= 0.75 * ftp_proxy)).astype(int)  # Endurance
+            result_df['power_zone_3'] = ((power_series > 0.75 * ftp_proxy) & (power_series <= 0.9 * ftp_proxy)).astype(int)  # Tempo
+            result_df['power_zone_4'] = ((power_series > 0.9 * ftp_proxy) & (power_series <= 1.05 * ftp_proxy)).astype(int)  # Threshold
+            result_df['power_zone_5'] = (power_series > 1.05 * ftp_proxy).astype(int)  # VO2max+
+            
+            # Anaerobic contribution (power above threshold)
+            result_df['anaerobic_reserve'] = (power_series - ftp_proxy).clip(0, None)
+            
+            # Fatigue modeling features
+            if 'time_elapsed' in result_df.columns:
+                time_elapsed = result_df['time_elapsed']
+                
+                # Glycogen depletion proxy (cumulative work over time)
+                cumulative_work_kj = (power_series * time_elapsed.diff()).cumsum() / 1000
+                result_df['fatigue_index'] = (cumulative_work_kj / (time_elapsed + 1)).fillna(0)
+                
+                # Intensity factor over time
+                normalized_power_30min = power_series.rolling(1800, min_periods=30).mean()
+                result_df['intensity_factor'] = (power_series / (normalized_power_30min + 1e-6)).fillna(1)
+                
+                # Time in power zones (as percentages)
+                for zone in range(1, 6):
+                    zone_time = result_df[f'power_zone_{zone}'].rolling(600, min_periods=1).sum()  # 10min windows
+                    result_df[f'time_in_zone_{zone}_pct'] = (zone_time / 600 * 100).fillna(0)
+        
+        # Advanced cadence features
+        if 'cad' in df.columns:
+            cad_series = df['cad'].fillna(0)
+            
+            # Cadence efficiency patterns
+            result_df['cad_optimal_range'] = ((cad_series >= 80) & (cad_series <= 100)).astype(int)
+            result_df['cad_suboptimal_low'] = (cad_series < 70).astype(int)
+            result_df['cad_suboptimal_high'] = (cad_series > 110).astype(int)
+            
+            # Cadence variability (pedaling smoothness)
+            for window in [30, 60, 120]:
+                cad_window = cad_series.rolling(window, min_periods=1)
+                result_df[f'cad_smoothness_{window}s'] = 1 / (cad_window.std() + 1e-6)  # Inverse of std
+                
+            # Cadence change rate
+            cad_diff = cad_series.diff().fillna(0)
+            result_df['cad_change_rate'] = cad_diff.rolling(30, min_periods=1).mean()
+        
+        # Power-Cadence interaction features (pedaling efficiency)
+        if 'power' in df.columns and 'cad' in df.columns:
+            power_series = df['power'].fillna(0)
+            cad_series = df['cad'].fillna(0)
+            
+            # Torque proxy (Power/Cadence relationship)
+            result_df['torque_proxy'] = power_series / (cad_series + 1e-6)
+            result_df['torque_proxy'] = result_df['torque_proxy'].fillna(0)
+            
+            # Pedaling efficiency at different power levels
+            for power_threshold in [100, 200, 300]:
+                mask = power_series >= power_threshold
+                if mask.sum() > 0:
+                    avg_cad_at_power = cad_series[mask].mean()
+                    result_df[f'cad_efficiency_{power_threshold}w'] = (cad_series / max(avg_cad_at_power, 1)).fillna(1)
+                else:
+                    result_df[f'cad_efficiency_{power_threshold}w'] = 1.0
+        
+        # Environmental/terrain features
+        if 'ele' in df.columns:
+            ele_series = df['ele'].fillna(0)
+            
+            # Gradient features (already implemented, enhance them)
+            ele_diff = ele_series.diff().fillna(0)
+            
+            # Gradient categories
+            result_df['flat_terrain'] = (abs(ele_diff) <= 2).astype(int)  # <2m elevation change
+            result_df['uphill_terrain'] = (ele_diff > 2).astype(int)
+            result_df['downhill_terrain'] = (ele_diff < -2).astype(int)
+            
+            # Climbing metrics
+            result_df['cumulative_elevation_gain'] = ele_diff.clip(0, None).cumsum()
+            result_df['climbing_rate'] = ele_diff.rolling(60, min_periods=1).sum()  # m/min climbing
+            
+            # VAM proxy (Vertical Ascent Meters per hour)
+            if 'time_elapsed' in result_df.columns:
+                time_diff_hours = result_df['time_elapsed'].diff() / 3600
+                result_df['vam_proxy'] = (ele_diff / (time_diff_hours + 1e-6)).fillna(0)
+        
+        # Contextual features (workout structure)
+        if 'time_elapsed' in result_df.columns:
+            time_elapsed = result_df['time_elapsed']
+            
+            # Time-based features
+            if 'time' in df.columns:
+                result_df['hour_of_day'] = df['time'].dt.hour
+                result_df['minute_of_hour'] = df['time'].dt.minute
+                
+                # Circadian rhythm factors (simplified)
+                hour = df['time'].dt.hour
+                result_df['circadian_factor'] = np.sin(2 * np.pi * hour / 24)  # Peak around noon
+            
+            # Workout progression
+            total_duration = time_elapsed.max()
+            result_df['workout_progress'] = (time_elapsed / max(total_duration, 1)).fillna(0)
+            
+            # Early/late workout indicators
+            result_df['workout_start_phase'] = (time_elapsed <= total_duration * 0.2).astype(int)
+            result_df['workout_end_phase'] = (time_elapsed >= total_duration * 0.8).astype(int)
+        
         return result_df
-    
-    def add_hr_zones(self, df: pd.DataFrame, max_hr: int = 180) -> pd.DataFrame:
-        """Add HR zone information."""
-        result_df = df.copy()
-        
-        if 'hr' not in df.columns:
-            return result_df
-        
-        # Define HR zones (as percentage of max HR)
-        zones = {
-            'zone1': (0.5, 0.6),   # Recovery
-            'zone2': (0.6, 0.7),   # Aerobic
-            'zone3': (0.7, 0.8),   # Threshold
-            'zone4': (0.8, 0.9),   # VO2 Max
-            'zone5': (0.9, 1.0),   # Anaerobic
-        }
-        
-        for zone_name, (low, high) in zones.items():
-            result_df[f'hr_{zone_name}'] = (
-                (result_df['hr'] >= low * max_hr) & 
-                (result_df['hr'] < high * max_hr)
-            ).astype(int)
-        
-        # Time in each zone (cumulative)
-        for zone_name in zones.keys():
-            result_df[f'time_in_{zone_name}'] = result_df[f'hr_{zone_name}'].cumsum()
-        
-        return result_df
-    
+
     def process_dataframe(self, df: pd.DataFrame, 
                          add_ma: bool = True,
-                         add_derived: bool = True,
-                         add_zones: bool = False) -> pd.DataFrame:
+                         add_derived: bool = True) -> pd.DataFrame:
         """Apply all feature engineering steps."""
         result = df.copy()
         
@@ -198,8 +304,5 @@ class FeatureEngineer:
         
         if add_derived:
             result = self.add_derived_features(result)
-        
-        if add_zones:
-            result = self.add_hr_zones(result)
-        
+
         return result

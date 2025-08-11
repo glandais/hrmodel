@@ -14,12 +14,8 @@ import argparse
 import pandas as pd
 import numpy as np
 from datetime import datetime
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Set matplotlib backend for thread safety (must be done before importing matplotlib)
-import matplotlib
-matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 # Add src to path for imports
 sys.path.append(str(Path(__file__).parent / 'src'))
@@ -31,6 +27,7 @@ from src.models.ridge_model import RidgeModel
 from src.models.elastic_net_model import ElasticNetModel
 from src.models.random_forest_model import RandomForestModel
 from src.models.xgboost_model import XGBoostModel
+from src.models.ensemble_model import EnsembleModel
 from src.utils.metrics import MetricsCalculator
 from src.utils.visualization import Visualizer
 
@@ -127,8 +124,7 @@ class HRModelPipeline:
             processed_df = self.feature_engineer.process_dataframe(
                 df,
                 add_ma=True,
-                add_derived=self.config['features']['add_derived'],
-                add_zones=self.config['features']['add_hr_zones']
+                add_derived=self.config['features']['add_derived']
             )
             
             self.processed_data[filename] = processed_df
@@ -336,6 +332,39 @@ class HRModelPipeline:
             
             # Save model
             xgb_model.save(model_dirs['model_file'])
+        
+        # Train Ensemble model
+        if 'ensemble' in self.config['training']['models']:
+            model_name = 'ensemble'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get Ensemble configuration
+            ensemble_config = self.config['models']['ensemble']
+            
+            # Create and train model
+            ensemble_model = EnsembleModel(
+                feature_columns=feature_cols,
+                rf_n_estimators=ensemble_config.get('rf_n_estimators', 200),
+                rf_max_depth=ensemble_config.get('rf_max_depth', 15),
+                rf_min_samples_split=ensemble_config.get('rf_min_samples_split', 5),
+                rf_min_samples_leaf=ensemble_config.get('rf_min_samples_leaf', 2),
+                rf_max_features=ensemble_config.get('rf_max_features', 'sqrt'),
+                xgb_n_estimators=ensemble_config.get('xgb_n_estimators', 150),
+                xgb_max_depth=ensemble_config.get('xgb_max_depth', 8),
+                xgb_learning_rate=ensemble_config.get('xgb_learning_rate', 0.1),
+                xgb_subsample=ensemble_config.get('xgb_subsample', 0.8),
+                xgb_colsample_bytree=ensemble_config.get('xgb_colsample_bytree', 0.8),
+                rf_weight=ensemble_config.get('rf_weight', 0.7),
+                xgb_weight=ensemble_config.get('xgb_weight', 0.3)
+            )
+            
+            # Train the ensemble model
+            ensemble_model.train(X, y)
+            self.models[model_name] = ensemble_model
     
     def evaluate_models(self, X: pd.DataFrame, y: pd.Series) -> None:
         """Evaluate all trained models."""
@@ -410,15 +439,9 @@ class HRModelPipeline:
         
         def create_model_visualizations(model_item):
             """Create visualizations for a single model."""
-            import matplotlib
-            import matplotlib.pyplot as plt
-            
-            # Force matplotlib to use non-interactive Agg backend for thread safety
-            matplotlib.use('Agg')
-            
+
             model_name, results = model_item
-            thread_id = threading.current_thread().ident
-            self.logger.info(f"Thread {thread_id}: Creating visualizations for {model_name}")
+            self.logger.info(f"Creating visualizations for {model_name}")
             
             try:
                 # Get model directories
@@ -446,45 +469,19 @@ class HRModelPipeline:
                 
                 # Create time-series plots for each input file
                 self.create_file_time_series_plots(model_name, model_plots_dir)
-                
-                # Close all matplotlib figures to prevent memory leaks
-                plt.close('all')
-                
-                self.logger.info(f"Thread {thread_id}: Completed visualizations for {model_name}")
+
+                self.logger.info(f"Completed visualizations for {model_name}")
                 return f"✅ {model_name}"
                 
             except Exception as e:
                 error_msg = f"❌ {model_name}: {str(e)}"
-                self.logger.error(f"Thread {thread_id}: Error creating visualizations for {model_name}: {e}", exc_info=True)
+                self.logger.error(f"Error creating visualizations for {model_name}: {e}", exc_info=True)
                 return error_msg
-        
-        # Execute visualization creation in parallel
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            future_to_model = {
-                executor.submit(create_model_visualizations, item): item[0] 
-                for item in self.results.items()
-            }
-            
-            # Collect results as they complete
-            completed_models = []
-            for future in as_completed(future_to_model):
-                model_name = future_to_model[future]
-                try:
-                    result = future.result()
-                    completed_models.append(result)
-                except Exception as e:
-                    error_msg = f"❌ {model_name}: {str(e)}"
-                    completed_models.append(error_msg)
-                    self.logger.error(f"Failed to create visualizations for {model_name}: {e}")
-        
-        # Log completion summary
-        success_count = sum(1 for result in completed_models if result.startswith('✅'))
-        self.logger.info(f"Visualization creation completed: {success_count}/{len(self.results)} models successful")
-        
-        for result in completed_models:
-            self.logger.info(f"  {result}")
-    
+
+
+        for model_result in self.results.items():
+            create_model_visualizations(model_result)
+
     def create_file_time_series_plots(self, model_name: str, plots_dir: Path) -> None:
         """Create time-series plots for each input file."""
         self.logger.info(f"Creating time-series plots for {model_name}...")
