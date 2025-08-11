@@ -43,9 +43,42 @@ hrmodel/
 
 ## Installation
 
+[uv](https://github.com/astral-sh/uv) is a fast, modern Python package manager that replaces pip and pip-tools.
+
 ```bash
-pip install -r requirements.txt
+# 1. Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Install dependencies and create virtual environment
+uv sync
+
+# 3. Activate virtual environment  
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\activate   # Windows
+
+# 4. Optional: Install time-series dependencies (failed in testing)
+uv add --optional-dependencies timeseries
 ```
+
+### Verification
+
+```bash
+# Test core functionality
+python -c "import gpxpy, pandas, sklearn, xgboost, lightgbm; print('Core dependencies OK')"
+
+# Optional: Test time-series dependencies  
+python -c "import statsmodels, prophet, torch; print('Time-series dependencies OK')" 2>/dev/null || echo "Time-series dependencies not installed (optional)"
+```
+
+### Virtual Environment Management
+
+```bash
+uv sync                    # Install/update dependencies
+source .venv/bin/activate  # Activate environment
+deactivate                 # Deactivate when done
+```
+
+> **💡 Pro Tip**: uv is **10-100x faster** than pip and handles dependency resolution automatically. Use `uv add <package>` to add new dependencies.
 
 ## Usage
 
@@ -215,11 +248,11 @@ See `requirements.txt` for full dependencies:
 
 ### Installation Notes
 ```bash
-# Core models (working)
-pip install gpxpy pandas numpy scikit-learn xgboost lightgbm pyarrow joblib matplotlib seaborn
+# Install all core dependencies
+uv sync
 
-# Time-series models (failed on our data)
-pip install statsmodels prophet torch
+# Optional: Time-series models (failed on our data)
+uv add --optional-dependencies timeseries
 ```
 
 ## Next Steps & Future Improvements
