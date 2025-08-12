@@ -261,13 +261,13 @@ training:
   # Models to train (comment out any to skip)
   models:
   - ols           # Baseline linear regression
-#  - ridge         # L2 regularized
-#  - elastic_net   # L1+L2 regularized
-#  - random_forest # Best performer (1.17 bpm MAE)
+  - ridge         # L2 regularized
+  - elastic_net   # L1+L2 regularized
+  - random_forest # Best performer (1.17 bpm MAE)
   - xgboost       # Gradient boosting (3.12 bpm MAE)
-#  - lightgbm      # Fast gradient boosting (testing)
-#  - ensemble      # Weighted RF+XGB (2.36 bpm MAE)
-#  - mlp           # Multi-Layer Perceptron neural network
+  - lightgbm      # Fast gradient boosting (testing)
+  - ensemble      # Weighted RF+XGB (2.36 bpm MAE)
+  - mlp           # Multi-Layer Perceptron neural network
 #  - prophet       # Facebook's time-series forecasting (NOT WORKING)
 
   # Whether to perform hyperparameter tuning
