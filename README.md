@@ -2,6 +2,16 @@
 
 This project processes GPX cycling data files to predict heart rate based on cadence, power, and elevation using advanced machine learning models. The system achieves **breakthrough performance** with **1.17 bpm mean absolute error** using optimized Random Forest regression - **exceeding the <2.0 bpm target by 41%**.
 
+## Results
+
+Predicted HR vs actual HR
+
+![hr7](img/random_forest/hr7_error.png)
+
+Overall performance
+
+![predictions](img/random_forest/predictions.png)
+
 ## Project Structure
 
 ```
