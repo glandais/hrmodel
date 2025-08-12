@@ -271,7 +271,7 @@ training:
 #  - prophet       # Facebook's time-series forecasting (NOT WORKING)
 
   # Whether to perform hyperparameter tuning
-  tune_hyperparameters: false  # Default params are optimal!
+  tune_hyperparameters: true
   
   # Number of trials for hyperparameter search (start with 20 for testing)
   tuning_trials: 20

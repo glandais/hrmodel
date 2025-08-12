@@ -323,7 +323,7 @@ class HRModelPipeline:
             subsample = xgb_config.get('subsample', 0.8)
             colsample_bytree = xgb_config.get('colsample_bytree', 0.8)
             
-            # Create and train model
+            # Create XGBoost model
             xgb_model = XGBoostModel(
                 feature_columns=feature_cols,
                 n_estimators=n_estimators,
@@ -333,6 +333,15 @@ class HRModelPipeline:
                 colsample_bytree=colsample_bytree,
                 normalize=xgb_config.get('normalize', False)
             )
+            
+            # Perform hyperparameter tuning if enabled
+            if self.config.get('training', {}).get('tune_hyperparameters', False):
+                n_trials = self.config.get('training', {}).get('tuning_trials', 20)
+                self.logger.info(f"Starting XGBoost hyperparameter tuning with {n_trials} trials...")
+                best_params, best_mae = xgb_model.tune_hyperparameters(X, y, n_trials=n_trials)
+                self.logger.info(f"Hyperparameter tuning completed. Best MAE: {best_mae:.3f} bpm")
+            
+            # Train model with (potentially optimized) parameters
             xgb_model.train(X, y)
             self.models[model_name] = xgb_model
             

@@ -320,6 +320,44 @@ The MLP neural network was implemented with comprehensive hyperparameter tuning 
 - **MLP**: 4.40 bpm MAE (276% higher error)
 - **Conclusion**: Tree-based models remain superior for this physiological prediction task
 
+## XGBoost Hyperparameter Tuning - Critical Learning
+
+### 🚨 **IMPORTANT FINDING: Hyperparameter Tuning Can Degrade Performance!**
+
+A comprehensive hyperparameter optimization experiment revealed a critical machine learning lesson:
+
+**⚠️ Results Summary:**
+- **Default XGBoost**: **3.12 bpm MAE** (R² = 0.9032) ✅ **SUPERIOR**
+- **Tuned XGBoost**: 4.24 bpm MAE (R² = 0.8181) ❌ **36% WORSE**
+
+### **Optimization Process:**
+- **Method**: Optuna Bayesian optimization  
+- **Trials**: 20 comprehensive evaluations
+- **Cross-validation**: 5-fold CV
+- **Duration**: 4+ minutes
+- **Search space**: 11 hyperparameters including architecture, regularization, sampling
+
+### **Best Found Parameters (WORSE Performance):**
+```yaml
+Trees: 600 (vs 200 default)         # 3x more estimators  
+Max depth: 4 (vs 6 default)         # Shallower trees
+Learning rate: 0.0106 (vs 0.1)      # 10x slower learning
+L1/L2 regularization: High          # Over-regularization
+Sampling: More aggressive           # Increased randomness
+```
+
+### **Why Tuning Failed:**
+1. **Default parameters were already optimal** for this physiological dataset
+2. **Cross-validation overfitting**: Optimized for CV folds, not true performance  
+3. **Over-regularization**: Heavy L1/L2 penalties reduced model capacity
+4. **Under-learning**: Extremely slow learning rate (0.0106 vs 0.1)
+5. **Hyperparameter space exploration** found suboptimal regions
+
+### **Key Lesson for Machine Learning:**
+> **Not all models benefit from hyperparameter tuning.** Sometimes defaults are near-optimal, and extensive search can lead to overfitting to validation folds. Always compare tuned results against sensible baselines.
+
+**🏆 Conclusion:** Default XGBoost configuration retained as optimal (3.12 bpm MAE)
+
 ### 🔬 Time-Series Research Results
 **Key Finding**: Time-series models (ARIMA, Prophet) are fundamentally misaligned with our prediction task:
 - **ARIMA/Prophet designed for**: Sequential forecasting (predict next HR from historical sequence)

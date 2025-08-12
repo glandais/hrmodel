@@ -131,6 +131,53 @@ Patience: 24                  # Early stopping patience
 **🔬 Research Conclusion:**
 Neural networks (MLP) provide modest improvement over linear baselines but cannot match tree-based model performance on this physiological regression task. The **optimal architecture is surprisingly simple** - a single hidden layer with 128 neurons, suggesting the data relationships are not highly complex or that tree-based models naturally capture the relevant non-linearities better.
 
+### 🚨 **XGBoost Hyperparameter Tuning - CRITICAL FINDING**
+
+**⚠️ SURPRISING RESULT: Hyperparameter tuning DEGRADED performance!**
+
+**Performance Comparison:**
+- **Default XGBoost**: **3.12 bpm MAE, R² = 0.9032** ✅ **SUPERIOR**
+- **Optuna-tuned XGBoost**: 4.24 bpm MAE, R² = 0.8181 ❌ **36% WORSE**
+
+**🔬 Comprehensive Optimization Process:**
+```yaml
+Method: Optuna Bayesian optimization with TPE sampler
+Trials: 20 comprehensive evaluations (4+ minutes)
+Cross-validation: 5-fold CV with MAE minimization  
+Search space: 11 hyperparameters
+- n_estimators: 100-1000 (step 50)
+- max_depth: 3-15
+- learning_rate: 0.01-0.3 (log scale)
+- subsample, colsample_bytree/level/node: 0.6-1.0
+- reg_alpha, reg_lambda: 0.0-10.0 (L1/L2 regularization)
+- min_child_weight: 1-10
+- gamma: 0.0-5.0 (loss reduction threshold)
+```
+
+**🏆 Best Trial Configuration (WORSE Performance):**
+- **Trees**: 600 (3x more than default 200)
+- **Max depth**: 4 (shallower than default 6)  
+- **Learning rate**: 0.0106 (10x slower than default 0.1)
+- **Heavy regularization**: L1=7.13, L2=4.45
+- **Aggressive sampling**: Multiple colsample parameters <1.0
+
+**🔍 Why Hyperparameter Tuning Failed:**
+1. **Default parameters were already near-optimal** for this physiological dataset
+2. **Cross-validation overfitting**: Optimization focused on CV performance, not true generalization
+3. **Over-regularization**: Heavy L1/L2 penalties reduced model learning capacity
+4. **Under-learning**: Extremely slow learning rate (0.0106) may not have converged properly  
+5. **Suboptimal exploration**: Bayesian optimization explored poor regions of hyperparameter space
+6. **Dataset-specific optimum**: Default XGBoost parameters happen to be excellent for HR prediction
+
+**📚 Key Machine Learning Lesson:**
+> **Hyperparameter tuning is not always beneficial.** Well-designed default parameters can be near-optimal, and extensive search may overfit to validation metrics. Always validate tuned models against sensible baselines.
+
+**🎯 Research Impact:**
+- **Retained default XGBoost** as optimal configuration (3.12 bpm MAE)
+- **Documented negative result** - important for ML research transparency  
+- **Validated importance** of testing tuning assumptions
+- **Demonstrated value** of comprehensive model comparison methodology
+
 ### 🔬 **KEY RESEARCH FINDINGS**
 
 #### **Time-Series Model Failure Analysis**
