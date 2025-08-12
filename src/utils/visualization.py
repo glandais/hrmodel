@@ -175,15 +175,30 @@ class Visualizer:
         else:
             plt.show()
     
-    def plot_feature_importance(self, importance_df: pd.DataFrame,
+    def plot_feature_importance(self, importance_df,
                                top_n: int = 15,
                                title: str = "Feature Importance",
                                save_path: Optional[Path] = None) -> None:
         """Plot feature importance."""
-        fig, ax = plt.subplots(figsize=(10, 8))
+        # Handle case where importance_df might be None or empty
+        if importance_df is None:
+            print(f"Warning: No feature importance data available for {title}")
+            return
+            
+        # Convert dict to DataFrame if needed (for neural networks like MLP)
+        if isinstance(importance_df, dict):
+            if not importance_df:  # Empty dict
+                print(f"Warning: Empty feature importance data for {title}")
+                return
+            plot_df = pd.DataFrame([
+                {'feature': k, 'importance': v} 
+                for k, v in importance_df.items()
+            ]).sort_values('importance', ascending=False).head(top_n)
+        else:
+            # Regular DataFrame (for tree models, linear models)
+            plot_df = importance_df.head(top_n)
         
-        # Select top N features
-        plot_df = importance_df.head(top_n)
+        fig, ax = plt.subplots(figsize=(10, 8))
         
         # Handle different column names for different model types
         importance_col = 'abs_coefficient' if 'abs_coefficient' in plot_df.columns else 'importance'

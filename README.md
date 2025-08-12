@@ -165,6 +165,7 @@ Average prediction error (predicted - actual). Positive bias means the model ten
 | **Ensemble (RF+XGB)** | **2.36** | **3.18** | **0.9417** | 🥈 **2nd place** |
 | XGBoost | 3.12 | 4.10 | 0.9032 | 3rd place |
 | **LightGBM** | **3.31** | **4.31** | **0.8929** | 4th place |
+| **MLP Neural Network** | **4.40** | **5.83** | **0.8042** | 5th place |
 | OLS | 4.95 | 6.64 | 0.7456 | Baseline |
 | Ridge | 4.95 | 6.64 | 0.7456 | Same as OLS |
 | Elastic Net | 5.73 | 7.41 | 0.6834 | Feature selection |
@@ -236,10 +237,15 @@ See `requirements.txt` for full dependencies:
 - **scikit-learn**: Machine learning models (OLS, Ridge, Elastic Net, Random Forest)
 - **xgboost**: Advanced gradient boosting (3rd best performer)
 - **lightgbm**: Microsoft's fast gradient boosting (4th place)
+- **tensorflow**: Neural networks (MLP implementation - 5th place)
 - **pyarrow**: Parquet file support
 - **joblib**: Model persistence
 - **matplotlib**: Visualization and plotting
 - **seaborn**: Statistical visualizations
+
+### Neural Network Dependencies
+- **tensorflow**: Multi-Layer Perceptron neural networks (4.40 bpm MAE)
+- **optuna**: Bayesian hyperparameter optimization (20 trials, 4+ hours)
 
 ### Time-Series Dependencies (Optional - Models Failed)
 - **statsmodels**: ARIMA/SARIMAX models (prediction failure)
@@ -264,7 +270,45 @@ uv add --optional-dependencies timeseries
 - ✅ **Hyperparameter tuning** - Systematic optimization with 46% improvement
 - ✅ **Production pipeline** - Complete automated training/evaluation system
 - ✅ **Time-series model evaluation** - **ARIMA, Prophet, State Space, DeepAR** (failed due to paradigm mismatch)
-- ✅ **Comprehensive comparison** - **10+ algorithms tested** across multiple paradigms
+- ✅ **Comprehensive comparison** - **11+ algorithms tested** across multiple paradigms including neural networks
+
+## Neural Network Implementation & Optimization
+
+### MLP (Multi-Layer Perceptron) Results
+The MLP neural network was implemented with comprehensive hyperparameter tuning using Optuna (Bayesian optimization):
+
+**🔧 Hyperparameter Tuning Process:**
+- **Optimization method**: Optuna Bayesian optimization
+- **Trials completed**: 20 trials over 4 hours 18 minutes  
+- **Search space**: Architecture (1-4 layers), learning rate, batch size, dropout, L2 regularization
+- **Cross-validation**: 5-fold CV for robust evaluation
+
+**🏆 Best Configuration Found (Trial 13):**
+- **Architecture**: Single hidden layer with 128 neurons
+- **Learning rate**: 1.14e-03
+- **Batch size**: 512
+- **Dropout**: 2.2% (minimal regularization needed)
+- **L2 regularization**: 9.29e-03
+- **Training epochs**: 138 (early stopping at patience=24)
+
+**📊 Final Performance:**
+- **MAE**: 4.40 bpm (11% improvement vs OLS baseline 4.95 bpm)
+- **RMSE**: 5.83 bpm  
+- **R²**: 0.8042 (8% improvement vs OLS 0.7456)
+- **Training time**: ~25 minutes for final model
+- **Model size**: 2,945 parameters (11.5 KB)
+
+**💡 Key Insights:**
+- **Simple architecture wins**: Single-layer outperformed complex 2-4 layer networks
+- **Overfitting control**: Minimal dropout (2.2%) was optimal, suggesting data richness
+- **Batch size matters**: Large batch (512) achieved better convergence
+- **Learning rate**: Mid-range (1.14e-03) balanced training speed and stability
+- **Early stopping effective**: Stopped at epoch 138/153 to prevent overfitting
+
+**🎯 Performance vs Random Forest:**
+- Random Forest: 1.17 bpm MAE (Champion)
+- **MLP**: 4.40 bpm MAE (276% higher error)
+- **Conclusion**: Tree-based models remain superior for this physiological prediction task
 
 ### 🔬 Time-Series Research Results
 **Key Finding**: Time-series models (ARIMA, Prophet) are fundamentally misaligned with our prediction task:
@@ -274,7 +318,8 @@ uv add --optional-dependencies timeseries
 - **Lesson**: Model paradigm must match problem structure
 
 ### Advanced Research 
-- **Neural networks (LSTM/GRU)** - For complex temporal patterns (different from time-series forecasting)
+- ✅ **Multi-Layer Perceptron (MLP)** - **Implemented & Optimized** (4.40 bpm MAE, single 128-neuron layer)
+- **LSTM/GRU networks** - For complex temporal patterns (different from time-series forecasting)
 - **Individual athlete calibration** - Person-specific models
 - **Real-time features** - Training load, recovery metrics
 - **Polynomial features** - Capture power-HR non-linearity

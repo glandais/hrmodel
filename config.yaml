@@ -197,6 +197,17 @@ models:
     batch_size: 32             # Batch size for training
     sequence_length: 30        # Length of input sequences (30 seconds)
     normalize: true            # Feature scaling (recommended for neural nets)
+  
+  # MLP: Multi-Layer Perceptron neural network for HR prediction
+  mlp:
+    hidden_layers: [64, 32, 16]  # Architecture: 64 -> 32 -> 16 -> 1
+    learning_rate: 0.001         # Adam optimizer learning rate
+    epochs: 100                  # Maximum training epochs
+    batch_size: 256              # Batch size for training
+    dropout: 0.2                 # Dropout rate for regularization (0.1 for last layer)
+    l2_reg: 0.001               # L2 regularization strength
+    patience: 15                 # Early stopping patience
+    normalize: true              # Feature scaling (critical for neural networks)
 
 # Output Configuration
 # -------------------
@@ -250,38 +261,17 @@ training:
   # Models to train (comment out any to skip)
   models:
   - ols           # Baseline linear regression
-  - ridge         # L2 regularized
-  - elastic_net   # L1+L2 regularized
-  - random_forest # Best performer (1.17 bpm MAE)
-  - xgboost       # Gradient boosting (3.12 bpm MAE)
-  - lightgbm      # Fast gradient boosting (testing)
-#  - prophet       # Facebook's time-series forecasting
-  - ensemble      # Weighted RF+XGB (2.36 bpm MAE)
-  
+#  - ridge         # L2 regularized
+#  - elastic_net   # L1+L2 regularized
+#  - random_forest # Best performer (1.17 bpm MAE)
+#  - xgboost       # Gradient boosting (3.12 bpm MAE)
+#  - lightgbm      # Fast gradient boosting (testing)
+#  - ensemble      # Weighted RF+XGB (2.36 bpm MAE)
+  - mlp           # Multi-Layer Perceptron neural network
+#  - prophet       # Facebook's time-series forecasting (NOT WORKING)
+
   # Whether to perform hyperparameter tuning
   tune_hyperparameters: true
   
-  # Number of trials for hyperparameter search
-  tuning_trials: 50
-
-# ============================================================
-# PERFORMANCE SUMMARY (72,727 samples, 21 features)
-# ============================================================
-# Model          | MAE (bpm) | RMSE | R²     | Status
-# ---------------|-----------|------|--------|-------------
-# Random Forest  | 1.17      | 1.68 | 0.9837 | 🏆 CHAMPION
-# Ensemble       | 2.36      | 3.18 | 0.9417 | 🥈 2nd place
-# XGBoost        | 3.12      | 4.10 | 0.9032 | 3rd place
-# LightGBM       | 3.31      | 4.31 | 0.8929 | 4th place
-# OLS/Ridge      | 4.95      | 6.64 | 0.7456 | Baseline
-# Elastic Net    | 5.73      | 7.41 | 0.6834 | Feature selection
-# Prophet        | 76.09     | 82.56| -38.28 | ❌ Failed (time-series mismatch)
-# ARIMA          | 32M+      | 175M+| -175T+ | ❌ Failed (severe prediction errors)
-# ============================================================
-# 
-# TIME-SERIES MODEL ISSUES:
-# - ARIMA/Prophet designed for sequential forecasting, not cross-sectional prediction
-# - Our task: predict HR from current conditions (power/cadence/elevation)  
-# - Time-series models expect temporal dependencies that don't exist in cycling data
-# - Result: Severe overfitting and prediction failures
-# ============================================================
+  # Number of trials for hyperparameter search (start with 20 for testing)
+  tuning_trials: 20

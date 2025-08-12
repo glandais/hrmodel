@@ -33,6 +33,7 @@ from src.models.arima_model import ARIMAModel
 from src.models.prophet_model import ProphetModel
 from src.models.state_space_model import StateSpaceModel
 from src.models.deepar_model import DeepARModel
+from src.models.mlp_model import MLPModel
 from src.utils.metrics import MetricsCalculator
 from src.utils.visualization import Visualizer
 
@@ -541,6 +542,36 @@ class HRModelPipeline:
             # Train the ensemble model
             ensemble_model.train(X, y)
             self.models[model_name] = ensemble_model
+        
+        # Train MLP model
+        if 'mlp' in self.config['training']['models']:
+            model_name = 'mlp'
+            self.logger.info(f"Training {model_name.upper()} model...")
+            
+            # Get model directories
+            model_dirs = self.get_model_directories(model_name)
+            model_dirs['base'].mkdir(parents=True, exist_ok=True)
+            
+            # Get MLP configuration
+            mlp_config = self.config['models']['mlp']
+            
+            # Create MLP model
+            mlp_model = MLPModel(mlp_config)
+            mlp_model.feature_columns = feature_cols
+            
+            # Hyperparameter tuning if enabled
+            if self.config['training'].get('tune_hyperparameters', False):
+                tuning_trials = self.config['training'].get('tuning_trials', 50)
+                self.logger.info(f"Starting MLP hyperparameter tuning with {tuning_trials} trials...")
+                best_params, best_mae = mlp_model.tune_hyperparameters(X, y, n_trials=tuning_trials)
+                self.logger.info(f"Hyperparameter tuning completed. Best MAE: {best_mae:.3f} bpm")
+            
+            # Train model with (possibly tuned) parameters
+            mlp_model.train(X, y)
+            self.models[model_name] = mlp_model
+            
+            # Save model
+            mlp_model.save(model_dirs['model_file'])
     
     def evaluate_models(self, X: pd.DataFrame, y: pd.Series) -> None:
         """Evaluate all trained models."""
