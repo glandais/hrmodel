@@ -9,7 +9,7 @@ class FeatureEngineer:
     def __init__(self, windows: List[int] = [5, 10, 30, 60]):
         self.windows = windows
     
-    def add_moving_averages(self, df: pd.DataFrame, columns: List[str] = ['hr', 'cad', 'power']) -> pd.DataFrame:
+    def add_moving_averages(self, df: pd.DataFrame, columns: List[str] = ['cad', 'power']) -> pd.DataFrame:
         """Add moving averages for specified columns."""
         result_df = df.copy()
         

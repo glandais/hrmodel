@@ -267,7 +267,7 @@ training:
   - xgboost       # Gradient boosting (3.12 bpm MAE)
   - lightgbm      # Fast gradient boosting (testing)
   - ensemble      # Weighted RF+XGB (2.36 bpm MAE)
-  - mlp           # Multi-Layer Perceptron neural network
+#  - mlp           # Multi-Layer Perceptron neural network
 #  - prophet       # Facebook's time-series forecasting (NOT WORKING)
 
   # Whether to perform hyperparameter tuning
