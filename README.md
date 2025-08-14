@@ -236,6 +236,47 @@ The system generates **107 engineered features** from 4 raw GPX features (power,
 - **No HR features used** - model predicts from effort data only (deployable)
 - **Tree-based models** handle non-linear power-HR relationships automatically
 
+## 🔬 Feature Impact Analysis - Random Forest Model
+
+Comprehensive feature importance analysis reveals how different features contribute to the champion model's **1.17 bpm MAE** performance:
+
+### 📊 Most Critical Individual Features
+1. **power60** (60-second power moving average): **75.5%** of total importance - **DOMINANT**
+2. **power30** (30-second power MA): 3.2% importance
+3. **ele** (elevation): 3.1% importance  
+4. **cad60** (60-second cadence MA): 2.2% importance
+5. **cad_lag_30** (cadence 30 seconds ago): 2.2% importance
+
+### 🎯 Feature Group Impact on MAE
+
+| Feature Group | # Features | MAE Increase When Removed | Impact |
+|--------------|------------|---------------------------|---------|
+| **Power Moving Averages** | 4 | +0.735 bpm (48.5%) | **CRITICAL** |
+| **Raw Sensors** | 3 | +0.123 bpm (8.1%) | Important |
+| **Cadence Moving Averages** | 4 | +0.029 bpm (1.9%) | Moderate |
+| **Cadence Lags** | 5 | +0.027 bpm (1.8%) | Moderate |
+| **Power Lags** | 5 | -0.039 bpm (-2.6%) | Redundant |
+
+### ⚡ Model Efficiency Analysis
+- **Top 1 feature** (power60 alone): 3.26 bpm MAE (R² = 0.89)
+- **Top 3 features**: 1.82 bpm MAE (R² = 0.96)
+- **Top 5 features**: 1.58 bpm MAE (R² = 0.97)
+- **Top 10 features**: 1.49 bpm MAE (R² = 0.98) - **OPTIMAL**
+- All 21 features: 1.51 bpm MAE (R² = 0.98) - diminishing returns
+
+### 💡 Key Feature Insights
+1. **Power dominates**: 60-second power moving average alone accounts for 75% of model importance
+2. **Diminishing returns**: Performance plateaus after 10 features
+3. **Power lags redundant**: Moving averages already capture lag information
+4. **Cadence secondary**: Power output is the primary HR driver
+5. **Elevation matters**: Terrain difficulty affects HR independently of power
+
+### 🎯 Practical Implications
+- **Production deployment**: Use only top 10 features for best performance
+- **Real-time systems**: Power60 alone gives reasonable predictions
+- **Feature engineering focus**: Optimize power moving average calculations
+- **Consider removing**: Power lag features (redundant with moving averages)
+
 ## Requirements
 
 See `requirements.txt` for full dependencies:
