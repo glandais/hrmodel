@@ -9,7 +9,7 @@ dependencies = [
     # Core dependencies (required for main models)
     "gpxpy>=1.6.2",
     "pandas>=2.3.1",
-    "numpy>=1.26.0,<2.2.0",
+    "numpy>=1.26.0,<2.6.0",
     "scikit-learn>=1.7.1",
     "xgboost>=3.0.4",
     "lightgbm>=4.6.0",
